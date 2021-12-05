@@ -1,0 +1,61 @@
+name: Base infrastructure deployment
+
+# Controls when the action will run.
+on:
+  # Triggers the workflow on push only for the main branch
+  push:
+    branches: [master]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    name: Setup terraform
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install terraform
+        env:
+          TERRAFORM_VERSION: '0.14.9'
+        run: |
+          tf_version=$TERRAFORM_VERSION
+          wget https://releases.hashicorp.com/terraform/"$tf_version"/terraform_"$tf_version"_linux_amd64.zip
+          unzip terraform_"$tf_version"_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+      - name: Verify Terraform version
+        run: terraform --version
+
+      - name: Configure AWS credentials for profile=default
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Initialise
+        run: |
+          cd aws
+          terraform init
+
+      - name: Terraform validate
+        run: |
+          cd aws
+          terraform validate
+
+      - name: Terraform plan
+        run: |
+          cd aws
+          terraform plan \
+          -var "aws_region=${{ secrets.AWS_REGION }}" \
+          -var "aws_access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+          -var "aws_secret_key=${{ secrets.AWS_SECRET_KEY }}"
+
+      - name: Terraform apply
+        run: |
+          cd aws
+          echo "yes" | terraform apply \
+          -var "aws_region=${{ secrets.AWS_REGION }}" \
+          -var "aws_access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+          -var "aws_secret_key=${{ secrets.AWS_SECRET_KEY }}"
